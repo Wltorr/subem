@@ -274,30 +274,37 @@ function getSequenceTracks() {
  * Main function dispatcher
  */
 function main() {
-    var args = arguments[0];
-    var functionName = args.function;
-    var params = args.params || {};
-    
-    switch (functionName) {
-        case 'getCurrentSequence':
-            return getCurrentSequence();
-        case 'exportSequenceAudio':
-            return exportSequenceAudio();
-        case 'importSubtitles':
-            return importSubtitles(params.path, params.format);
-        case 'ensureCaptionTrack':
-            return ensureCaptionTrack();
-        case 'getProjectInfo':
-            return getProjectInfo();
-        case 'saveProject':
-            return saveProject();
-        case 'getSequenceTracks':
-            return getSequenceTracks();
-        default:
-            return JSON.stringify({
-                success: false,
-                error: "Bilinmeyen fonksiyon: " + functionName
-            });
+    try {
+        var args = arguments[0];
+        var functionName = args.function;
+        var params = args.params || {};
+        
+        switch (functionName) {
+            case 'getCurrentSequence':
+                return getCurrentSequence();
+            case 'exportSequenceAudio':
+                return exportSequenceAudio();
+            case 'importSubtitles':
+                return importSubtitles(params.path, params.format);
+            case 'ensureCaptionTrack':
+                return ensureCaptionTrack();
+            case 'getProjectInfo':
+                return getProjectInfo();
+            case 'saveProject':
+                return saveProject();
+            case 'getSequenceTracks':
+                return getSequenceTracks();
+            default:
+                return JSON.stringify({
+                    success: false,
+                    error: "Bilinmeyen fonksiyon: " + functionName
+                });
+        }
+    } catch (e) {
+        return JSON.stringify({
+            success: false,
+            error: "Ana fonksiyon hatası: " + e.toString()
+        });
     }
 }
 

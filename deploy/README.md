@@ -1,157 +1,297 @@
-# AWS Free Tier Backend Kurulumu
+# Adobe Premiere Pro AI Altyazı Eklentisi - Deployment
 
-Bu rehber AWS Free Tier (t2.micro) ile backend'i nasıl kuracağınızı gösterir.
+Bu dizin, Adobe Premiere Pro AI Altyazı Eklentisini farklı ortamlarda çalıştırmak için gerekli dosyaları içerir.
 
-## 🚀 Hızlı Kurulum
+## 🚀 Hızlı Başlangıç
 
-### 1. AWS EC2 Instance Oluştur
-
-1. **AWS Console'a git**: https://console.aws.amazon.com/ec2/
-2. **Launch Instance** tıkla
-3. **AMI seç**: Ubuntu Server 22.04 LTS (Free tier eligible)
-4. **Instance Type**: t2.micro (Free tier)
-5. **Key Pair**: Yeni oluştur veya mevcut olanı seç
-6. **Security Group**: 
-   - SSH (22) - My IP
-   - Custom TCP (5000) - Anywhere (0.0.0.0/0)
-7. **Launch Instance**
-
-### 2. EC2'ye Bağlan
-
-**Windows (PowerShell):**
-```powershell
-# Key dosyasını indir ve şu komutu çalıştır
-ssh -i "your-key.pem" ubuntu@your-ec2-public-ip
+### Windows (Önerilen)
+```bash
+# Hızlı kurulum scripti
+quick-deploy.bat
 ```
 
-**macOS/Linux:**
+### Docker ile
 ```bash
-chmod 400 your-key.pem
-ssh -i "your-key.pem" ubuntu@your-ec2-public-ip
+# Docker Compose ile başlat
+docker-compose up -d
+
+# Logları izle
+docker-compose logs -f
+
+# Durdur
+docker-compose down
 ```
 
-### 3. Backend'i Kur
-
-EC2'de şu komutları çalıştır:
-
+### Manuel Kurulum
 ```bash
-# Proje dosyalarını yükle
-git clone https://github.com/your-repo/ai-subtitles.git
-cd ai-subtitles
+# Backend dizinine git
+cd backend
 
-# Veya manuel olarak dosyaları kopyala
-# scp -i "your-key.pem" -r backend/ ubuntu@your-ec2-ip:~/
-# scp -i "your-key.pem" -r deploy/ ubuntu@your-ec2-ip:~/
+# Virtual environment oluştur
+python -m venv venv
 
-# Kurulum scriptini çalıştır
-chmod +x deploy/aws-setup.sh
-./deploy/aws-setup.sh
-```
-
-### 4. Test Et
-
-```bash
-# Health check
-curl http://localhost:5000/health
-
-# Public IP ile test
-curl http://YOUR-EC2-PUBLIC-IP:5000/health
-```
-
-## 🔧 Manuel Kurulum (Alternatif)
-
-Docker olmadan:
-
-```bash
-# Python ve FFmpeg kur
-sudo apt update
-sudo apt install -y python3 python3-pip python3-venv ffmpeg
-
-# Virtual environment
-python3 -m venv venv
+# Virtual environment aktifleştir
+# Windows
+venv\Scripts\activate.bat
+# macOS/Linux
 source venv/bin/activate
 
 # Bağımlılıkları yükle
-pip install -r backend/requirements.txt
+pip install -r requirements.txt
 
-# Backend'i başlat
-cd backend
-export WHISPER_MODEL=base
-export USE_FASTER_WHISPER=true
-export DEBUG=false
+# Uygulamayı başlat
 python run.py
 ```
 
-## 🌐 Panel Ayarları
+## 📋 Gereksinimler
 
-Backend çalıştıktan sonra:
+### Sistem Gereksinimleri
+- **Python**: 3.8 veya üzeri
+- **FFmpeg**: Ses/video işleme için
+- **RAM**: En az 4GB (Whisper modeli için)
+- **Disk**: En az 2GB boş alan
 
-1. **Public IP'yi al**: EC2 Console'dan
-2. **Panel'de API URL**: `http://YOUR-EC2-PUBLIC-IP:5000`
-3. **Test et**: Premiere Pro'da panel aç, altyazı oluştur
+### Python Paketleri
+- Flask 3.0.0+
+- OpenAI Whisper 20231117+
+- Faster Whisper 0.10.0+
+- PyTorch 2.1.2+
+- NumPy 1.26.2+
 
-## 💰 Maliyet
+## 🔧 Yapılandırma
 
-- **t2.micro**: 750 saat/ay ücretsiz (1 ay)
-- **Storage**: 30 GB EBS ücretsiz
-- **Data Transfer**: 1 GB/ay ücretsiz
-- **Toplam**: İlk ay tamamen ücretsiz
-
-## 🔒 Güvenlik
-
-- Security Group'da sadece gerekli portları aç
-- Key pair'i güvenli tut
-- Regular backup al
-
-## 📊 Monitoring
-
+### Environment Variables
 ```bash
-# Docker logları
-sudo docker-compose logs -f
+# Whisper model seçimi
+WHISPER_MODEL=base          # tiny, base, small, medium, large
+USE_FASTER_WHISPER=true     # true/false
+DEBUG=true                  # true/false
+PORT=5000                   # Port numarası
+```
 
-# Sistem kaynakları
+### Whisper Modelleri
+| Model | Boyut | Hız | Doğruluk | Önerilen |
+|-------|-------|-----|----------|----------|
+| tiny  | ~39 MB | Çok Hızlı | Düşük | Test |
+| base  | ~74 MB | Hızlı | İyi | **Önerilen** |
+| small | ~244 MB | Orta | İyi | Kaliteli |
+| medium| ~769 MB | Yavaş | Çok İyi | Profesyonel |
+| large | ~1550 MB | Çok Yavaş | En İyi | En yüksek kalite |
+
+## 🐳 Docker Deployment
+
+### Docker Compose
+```yaml
+version: '3.8'
+services:
+  ai-subtitles:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - WHISPER_MODEL=base
+      - USE_FASTER_WHISPER=true
+      - DEBUG=false
+      - PORT=5000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    volumes:
+      - ./models:/root/.cache/whisper
+```
+
+### Docker Build
+```bash
+# Image oluştur
+docker build -t ai-subtitles .
+
+# Container çalıştır
+docker run -d -p 5000:5000 --name ai-subtitles ai-subtitles
+
+# Logları izle
+docker logs -f ai-subtitles
+
+# Container durdur
+docker stop ai-subtitles
+```
+
+## 🌐 Production Deployment
+
+### Nginx Reverse Proxy
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    location / {
+        proxy_pass http://localhost:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+### Systemd Service
+```ini
+[Unit]
+Description=AI Subtitles Backend
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/path/to/backend
+Environment=PATH=/path/to/backend/venv/bin
+ExecStart=/path/to/backend/venv/bin/python run.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+## 🔍 Monitoring & Health Checks
+
+### Health Check Endpoint
+```bash
+curl http://localhost:5000/health
+```
+
+### Response Format
+```json
+{
+  "status": "healthy",
+  "model": "base",
+  "faster_whisper": true,
+  "model_status": "loaded"
+}
+```
+
+### Log Monitoring
+```bash
+# Real-time logs
+tail -f backend/app.log
+
+# Docker logs
+docker-compose logs -f ai-subtitles
+
+# System logs
+journalctl -u ai-subtitles -f
+```
+
+## 🛠️ Troubleshooting
+
+### Common Issues
+
+#### Model Loading Error
+```bash
+# Model cache temizle
+rm -rf ~/.cache/whisper
+
+# Manuel model indirme
+python -c "import whisper; whisper.load_model('base')"
+```
+
+#### Memory Issues
+```bash
+# Daha küçük model kullan
+export WHISPER_MODEL=tiny
+
+# Faster Whisper kullan
+export USE_FASTER_WHISPER=true
+```
+
+#### FFmpeg Error
+```bash
+# FFmpeg kurulum kontrolü
+ffmpeg -version
+
+# PATH kontrolü
+which ffmpeg
+```
+
+#### Port Already in Use
+```bash
+# Port kullanımını kontrol et
+netstat -tulpn | grep :5000
+
+# Farklı port kullan
+export PORT=5001
+```
+
+### Performance Optimization
+
+#### Whisper Model Selection
+```bash
+# Hızlı işlem için
+export WHISPER_MODEL=tiny
+export USE_FASTER_WHISPER=true
+
+# Kaliteli işlem için
+export WHISPER_MODEL=base
+export USE_FASTER_WHISPER=true
+```
+
+#### System Resources
+```bash
+# CPU kullanımı
 htop
+
+# Memory kullanımı
+free -h
 
 # Disk kullanımı
 df -h
 ```
 
-## 🛠️ Sorun Giderme
+## 📊 Performance Metrics
 
-**Port açık değil:**
+### Response Times
+- **Health Check**: < 100ms
+- **Model Info**: < 200ms
+- **Transcribe (tiny)**: 2-5 saniye
+- **Transcribe (base)**: 5-15 saniye
+- **Transcribe (small)**: 15-30 saniye
+
+### Resource Usage
+- **Memory**: 500MB - 2GB (model boyutuna göre)
+- **CPU**: %20-80 (işlem yoğunluğuna göre)
+- **Disk**: 100MB - 1GB (model cache)
+
+## 🔒 Security Considerations
+
+### Firewall Configuration
 ```bash
-sudo ufw status
-sudo ufw allow 5000
+# Sadece gerekli portları aç
+sudo ufw allow 5000/tcp
+
+# IP kısıtlaması
+sudo ufw allow from 192.168.1.0/24 to any port 5000
 ```
 
-**Docker çalışmıyor:**
+### Environment Security
 ```bash
-sudo systemctl status docker
-sudo systemctl start docker
+# Hassas bilgileri environment variables olarak sakla
+export OPENAI_API_KEY="your-api-key"
+
+# Production'da debug modunu kapat
+export DEBUG=false
 ```
 
-**Memory hatası:**
-- t2.micro sadece 1 GB RAM
-- `WHISPER_MODEL=tiny` kullan
+## 📞 Support
 
-**Whisper model indirme:**
-```bash
-# Manuel model indirme
-sudo docker exec -it container_name python -c "import whisper; whisper.load_model('base')"
-```
+Sorunlar için:
+1. GitHub Issues kullanın
+2. Log dosyalarını kontrol edin
+3. Health check endpoint'ini test edin
+4. System resources'ları kontrol edin
 
-## 🔄 Güncelleme
+---
 
-```bash
-# Yeni kod çek
-git pull
-
-# Docker rebuild
-sudo docker-compose down
-sudo docker-compose up -d --build
-```
-
-## 📱 Mobil Test
-
-Backend çalıştıktan sonra mobil cihazdan da test edebilirsin:
-- `http://YOUR-EC2-PUBLIC-IP:5000/health`
+**Not**: Bu deployment guide sürekli güncellenmektedir. En güncel bilgiler için GitHub repository'yi kontrol edin.

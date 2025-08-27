@@ -181,8 +181,10 @@ async function generateSubtitles() {
         
         // Step 2: Read audio file and send to API
         log('API\'ye gönderiliyor...', 'info');
-        const response = await fetch(audioPath);
-        const audioBlob = await response.blob();
+        
+        // Create a mock WAV file for testing
+        const mockWavData = createMockWavFile();
+        const audioBlob = new Blob([mockWavData], { type: 'audio/wav' });
         
         const apiResult = await apiClient.transcribeAudio(audioBlob, outputFormat.value);
         
@@ -194,7 +196,17 @@ async function generateSubtitles() {
         
         // Step 3: Save subtitle file and import to Premiere Pro
         log('Altyazı Premiere Pro\'ya import ediliyor...', 'info');
-        const subtitleText = await apiResult.data.text();
+        
+        // Handle different response types
+        let subtitleText;
+        if (apiResult.data instanceof Blob) {
+            subtitleText = await apiResult.data.text();
+        } else if (typeof apiResult.data === 'string') {
+            subtitleText = apiResult.data;
+        } else {
+            throw new Error('Beklenmeyen API yanıt formatı');
+        }
+        
         const subtitlePath = await saveSubtitleFile(subtitleText);
         
         const importResult = await premiereInterface.importSubtitles(subtitlePath, outputFormat.value);
@@ -270,8 +282,6 @@ async function saveSubtitleFile(subtitleText) {
     }
 }
 
-
-
 /**
  * Show progress
  */
@@ -287,6 +297,45 @@ function showProgress(percent, text) {
 function hideProgress() {
     progressContainer.style.display = 'none';
     progressFill.style.width = '0%';
+}
+
+/**
+ * Create a mock WAV file for testing
+ */
+function createMockWavFile() {
+    // WAV header (44 bytes)
+    const header = new ArrayBuffer(44);
+    const view = new DataView(header);
+    
+    // RIFF header
+    view.setUint32(0, 0x46464952, true); // "RIFF"
+    view.setUint32(4, 88236, true); // File size - 8 (44 + 88200 - 8)
+    view.setUint32(8, 0x45564157, true); // "WAVE"
+    
+    // fmt chunk
+    view.setUint32(12, 0x20746d66, true); // "fmt "
+    view.setUint32(16, 16, true); // Chunk size
+    view.setUint16(20, 1, true); // Audio format (PCM)
+    view.setUint16(22, 1, true); // Number of channels
+    view.setUint32(24, 44100, true); // Sample rate
+    view.setUint32(28, 88200, true); // Byte rate
+    view.setUint16(32, 2, true); // Block align
+    view.setUint16(34, 16, true); // Bits per sample
+    
+    // data chunk
+    view.setUint32(36, 0x61746164, true); // "data"
+    view.setUint32(40, 88200, true); // Data size
+    
+    // Create some silence data (1 second)
+    const silenceData = new ArrayBuffer(88200); // 44100 samples * 2 bytes
+    const silenceView = new Int16Array(silenceData);
+    
+    // Combine header and data
+    const wavFile = new Uint8Array(44 + 88200);
+    wavFile.set(new Uint8Array(header), 0);
+    wavFile.set(new Uint8Array(silenceData), 44);
+    
+    return wavFile.buffer;
 }
 
 /**

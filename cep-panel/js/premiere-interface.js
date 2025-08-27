@@ -402,3 +402,4 @@ class PremiereInterface {
 
 // Global instance
 window.premiereInterface = new PremiereInterface();
+

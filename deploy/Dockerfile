@@ -4,6 +4,7 @@ FROM python:3.10-slim
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     wget \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Çalışma dizini
@@ -28,3 +29,4 @@ ENV PORT=5000
 
 # Uygulamayı başlat
 CMD ["python", "run.py"]
+
